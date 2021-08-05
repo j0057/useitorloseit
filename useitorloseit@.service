@@ -1,0 +1,43 @@
+# vim: set ft=systemd:
+
+# bpftrace script to monitor access to a file, and delete the file if it's not
+# used by anyting. Helpful for files that contain credentials.
+
+# To use, create a drop-in file with `systemctl edit useitorloseit@<name>`
+# and define a [Service] block with Environment= lines for at last FILENAME
+# and FILENAME_LEN.
+
+# TODO: find better way to set filename length
+
+[Unit]
+Description=Use it or lose it: %i
+
+[Service]
+Type=simple
+SyslogIdentifier=%N
+ExecStartPre=/usr/bin/test -n ${FILENAME}
+ExecStartPre=/usr/bin/test ${FILENAME_LEN} -gt 0
+ExecStartPre=/usr/bin/test ${TIMEOUT_SECS} -gt 0
+ExecStartPre=/usr/bin/test ${SAMPLE_INTERVAL_SECS} -gt 0
+ExecStart=/usr/bin/bpftrace --unsafe \
+    -e 'BEGIN { \
+            @last = nsecs; \
+        } \
+        tracepoint:syscalls:sys_enter_openat /strncmp(str(args->filename), str($1), ${FILENAME_LEN}) == 0/ { \
+            printf(\"use it: %%s %%s\\n\", comm, str(args->filename)); \
+            @last = nsecs; \
+        } \
+        tracepoint:syscalls:sys_enter_unlinkat /strncmp(str(args->pathname), str($1), ${FILENAME_LEN}) == 0/ { \
+            printf(\"lost it: %%s\\n\", str(args->pathname)); \
+            @last = 0; \
+        } \
+        interval:s:${SAMPLE_INTERVAL_SECS} /@last && (nsecs - @last) > ${TIMEOUT_SECS}e9/ { \
+            printf(\"lose it: last=%%ld now=%%lu d=%%lu fn=%%s\\n\", @last/1e9, nsecs/1e9, (nsecs-@last)/1e9, str($1)); \
+            system("/usr/bin/rm -fv %%s", str($1));  \
+        }' \
+    -- \
+    ${FILENAME}
+#Environment=FILENAME=...
+#Environment=FILENAME_LEN=...
+Environment=TIMEOUT_SECS=600
+Environment=SAMPLE_INTERVAL_SECS=1

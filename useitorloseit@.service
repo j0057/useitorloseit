@@ -43,4 +43,4 @@ Environment=TIMEOUT_SECS=600
 Environment=SAMPLE_INTERVAL_SECS=1
 
 [Install]
-WantedBy=multi-user.service
+WantedBy=multi-user.target

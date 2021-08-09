@@ -19,8 +19,9 @@ ExecStartPre=/usr/bin/test -n ${FILENAME}
 ExecStartPre=/usr/bin/test ${FILENAME_LEN} -gt 0
 ExecStartPre=/usr/bin/test ${TIMEOUT_SECS} -gt 0
 ExecStartPre=/usr/bin/test ${SAMPLE_INTERVAL_SECS} -gt 0
-ExecStart=/usr/bin/bpftrace --unsafe \
-    -e 'BEGIN { \
+ExecStart=/usr/bin/bpftrace --unsafe - -- ${FILENAME} ${FILENAME_LEN} ${TIMEOUT_SECS} ${SAMPLE_INTERVAL_SECS}
+StandardInputText=\
+        BEGIN { \
             @last = nsecs; \
         } \
         tracepoint:syscalls:sys_enter_openat /strncmp(str(args->filename), str($1), $2) == 0/ { \
@@ -34,9 +35,7 @@ ExecStart=/usr/bin/bpftrace --unsafe \
         interval:s:$4 /@last && (nsecs - @last) > ((uint64)$3 * 1e9)/ { \
             printf(\"lose it: last=%%ld now=%%lu d=%%lu fn=%%s\\n\", @last/1e9, nsecs/1e9, (nsecs-@last)/1e9, str($1)); \
             system("/usr/bin/rm -fv %%s", str($1));  \
-        }' \
-    -- \
-    ${FILENAME} ${FILENAME_LEN} ${TIMEOUT_SECS} ${SAMPLE_INTERVAL_SECS}
+        }
 #Environment=FILENAME=...
 #Environment=FILENAME_LEN=...
 Environment=TIMEOUT_SECS=600

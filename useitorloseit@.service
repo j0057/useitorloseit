@@ -23,20 +23,20 @@ ExecStart=/usr/bin/bpftrace --unsafe \
     -e 'BEGIN { \
             @last = nsecs; \
         } \
-        tracepoint:syscalls:sys_enter_openat /strncmp(str(args->filename), str($1), ${FILENAME_LEN}) == 0/ { \
+        tracepoint:syscalls:sys_enter_openat /strncmp(str(args->filename), str($1), $2) == 0/ { \
             printf(\"use it: %%s %%s\\n\", comm, str(args->filename)); \
             @last = nsecs; \
         } \
-        tracepoint:syscalls:sys_enter_unlinkat /strncmp(str(args->pathname), str($1), ${FILENAME_LEN}) == 0/ { \
+        tracepoint:syscalls:sys_enter_unlinkat /strncmp(str(args->pathname), str($1), $2) == 0/ { \
             printf(\"lost it: %%s\\n\", str(args->pathname)); \
             @last = 0; \
         } \
-        interval:s:${SAMPLE_INTERVAL_SECS} /@last && (nsecs - @last) > ${TIMEOUT_SECS}e9/ { \
+        interval:s:$4 /@last && (nsecs - @last) > ((uint64)$3 * 1e9)/ { \
             printf(\"lose it: last=%%ld now=%%lu d=%%lu fn=%%s\\n\", @last/1e9, nsecs/1e9, (nsecs-@last)/1e9, str($1)); \
             system("/usr/bin/rm -fv %%s", str($1));  \
         }' \
     -- \
-    ${FILENAME}
+    ${FILENAME} ${FILENAME_LEN} ${TIMEOUT_SECS} ${SAMPLE_INTERVAL_SECS}
 #Environment=FILENAME=...
 #Environment=FILENAME_LEN=...
 Environment=TIMEOUT_SECS=600

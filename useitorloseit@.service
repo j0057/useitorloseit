@@ -4,7 +4,7 @@
 # used by anyting. Helpful for files that contain credentials.
 
 # To use, create a drop-in file with `systemctl edit useitorloseit@<name>`
-# and define a [Service] block with Environment= lines for at last FILENAME
+# and define a [Service] block with Environment= lines for at least FILENAME
 # and FILENAME_LEN.
 
 # TODO: find better way to set filename length

@@ -5,9 +5,6 @@
 
 # To use, create a drop-in file with `systemctl edit useitorloseit@<name>`
 # and define a [Service] block with Environment= lines for at least FILENAME
-# and FILENAME_LEN.
-
-# TODO: find better way to set filename length
 
 [Unit]
 Description=Use it or lose it: %i
@@ -16,10 +13,9 @@ Description=Use it or lose it: %i
 Type=simple
 SyslogIdentifier=%N
 ExecStartPre=/usr/bin/test -n ${FILENAME}
-ExecStartPre=/usr/bin/test ${FILENAME_LEN} -gt 0
 ExecStartPre=/usr/bin/test ${TIMEOUT_SECS} -gt 0
 ExecStartPre=/usr/bin/test ${SAMPLE_INTERVAL_SECS} -gt 0
-ExecStart=/usr/bin/bpftrace --unsafe - -- ${FILENAME} ${FILENAME_LEN} ${TIMEOUT_SECS} ${SAMPLE_INTERVAL_SECS}
+ExecStart=/usr/bin/bpftrace --unsafe - -- ${FILENAME} ${TIMEOUT_SECS} ${SAMPLE_INTERVAL_SECS}
 StandardInputText=\
         BEGIN { \
             @last = nsecs; \
@@ -32,12 +28,11 @@ StandardInputText=\
             printf(\"lost it: %%s\\n\", str(args->pathname)); \
             @last = 0; \
         } \
-        interval:s:$4 /@last && (nsecs - @last) > ((uint64)$3 * 1e9)/ { \
+        interval:s:$3 /@last && (nsecs - @last) > ((uint64)$2 * 1e9)/ { \
             printf(\"lose it: last=%%ld now=%%lu d=%%lu fn=%%s\\n\", @last/1e9, nsecs/1e9, (nsecs-@last)/1e9, str($1)); \
             system("/usr/bin/rm -fv %%s", str($1));  \
         }
 #Environment=FILENAME=...
-#Environment=FILENAME_LEN=...
 Environment=TIMEOUT_SECS=600
 Environment=SAMPLE_INTERVAL_SECS=1
 
